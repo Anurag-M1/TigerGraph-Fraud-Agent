@@ -1,0 +1,102 @@
+// ============================================================================
+// Query 9: cluster_analysis (region_cluster & email_cluster)
+// Implements Policy R6 (Shared Origin Clusters):
+// Identifies geographic or email concentrations of fraud across different cards.
+// Returns JSON with matched entities, evidence trail, and confidence contribution.
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+// 9A. region_cluster: Cards sharing billing region with confirmed fraud
+CREATE OR REPLACE QUERY region_cluster(
+    VERTEX<BillingRegion> target_region,
+    INT window_days,
+    DATETIME center_ts
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    SetAccum<VERTEX<Card>> @@fraud_cards;
+    SetAccum<VERTEX<ClosedCase>> @@linked_cases;
+    SumAccum<INT> @@fraud_txn_count = 0;
+    SumAccum<DOUBLE> @@fraud_exposure = 0.0;
+    SumAccum<DOUBLE> @@confidence = 0.0;
+
+    DATETIME start_time;
+    DATETIME end_time;
+
+    start_time = datetime_add(center_ts, INTERVAL (-window_days) DAY);
+    end_time = datetime_add(center_ts, INTERVAL (window_days) DAY);
+
+    StartRegion = { target_region };
+
+    // Find transactions in region within window
+    Txns = SELECT t FROM StartRegion:r -(BILLED_TXN:e)-> Transaction:t
+           WHERE t.ts >= start_time AND t.ts <= end_time;
+
+    // Connect to ClosedCases that involved those transactions
+    Cases = SELECT cc FROM Txns:t -(INVOLVED_IN:e)-> ClosedCase:cc
+            WHERE cc.outcome == "confirmed_fraud"
+            ACCUM 
+                @@linked_cases += cc,
+                @@fraud_exposure += cc.exposure_usd;
+
+    // Connect to cards affected
+    Cards = SELECT c FROM Cases:cc -(ON_CARD:e)-> Card:c
+            ACCUM @@fraud_cards += c;
+
+    IF count(@@fraud_cards) >= 3 THEN
+        @@confidence = 0.88;
+    ELSE IF count(@@fraud_cards) >= 1 THEN
+        @@confidence = 0.70;
+    END;
+
+    PRINT target_region.id AS billing_region,
+          @@fraud_cards AS cluster_cards,
+          @@linked_cases AS linked_closed_cases,
+          count(@@fraud_cards) AS cards_in_cluster,
+          @@fraud_exposure AS total_fraud_exposure,
+          @@confidence AS confidence_contribution,
+          "region_cluster" AS cluster_type;
+}
+
+// 9B. email_cluster: Cards sharing email domain with confirmed fraud
+CREATE OR REPLACE QUERY email_cluster(
+    VERTEX<EmailDomain> target_email,
+    INT window_days,
+    DATETIME center_ts
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    SetAccum<VERTEX<Card>> @@fraud_cards;
+    SetAccum<VERTEX<ClosedCase>> @@linked_cases;
+    SumAccum<DOUBLE> @@confidence = 0.0;
+
+    DATETIME start_time;
+    DATETIME end_time;
+
+    start_time = datetime_add(center_ts, INTERVAL (-window_days) DAY);
+    end_time = datetime_add(center_ts, INTERVAL (window_days) DAY);
+
+    StartEmail = { target_email };
+
+    Txns = SELECT t FROM StartEmail:em -(EMAIL_OF:e)-> Transaction:t
+           WHERE t.ts >= start_time AND t.ts <= end_time;
+
+    Cases = SELECT cc FROM Txns:t -(INVOLVED_IN:e)-> ClosedCase:cc
+            WHERE cc.outcome == "confirmed_fraud"
+            ACCUM @@linked_cases += cc;
+
+    Cards = SELECT c FROM Cases:cc -(ON_CARD:e)-> Card:c
+            ACCUM @@fraud_cards += c;
+
+    IF count(@@fraud_cards) >= 3 THEN
+        @@confidence = 0.82;
+    ELSE IF count(@@fraud_cards) >= 1 THEN
+        @@confidence = 0.65;
+    END;
+
+    PRINT target_email.id AS email_domain,
+          @@fraud_cards AS cluster_cards,
+          @@linked_cases AS linked_closed_cases,
+          count(@@fraud_cards) AS cards_in_cluster,
+          @@confidence AS confidence_contribution,
+          "email_cluster" AS cluster_type;
+}

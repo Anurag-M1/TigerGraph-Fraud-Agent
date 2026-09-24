@@ -1,0 +1,54 @@
+// ============================================================================
+// Query 11: undocumented_sweep
+// Implements Policy R9 & Hackathon Innovation Scoring:
+// Detects novel coordinated abuse patterns that fit none of the 5 standard typologies:
+// 1. Cross-customer identical amount clustering
+// 2. Structured authorizations just below monitoring thresholds ($99.xx amounts)
+// 3. High fan-out device profiles spreading across distinct customer accounts
+// Returns JSON with matched entities, evidence trail, and confidence contribution.
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+CREATE OR REPLACE QUERY undocumented_sweep(
+    INT min_fanout_cards,
+    DOUBLE structured_threshold_lower,
+    DOUBLE structured_threshold_upper
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    MapAccum<VERTEX<DeviceProfile>, SetAccum<VERTEX<Card>>> @@device_card_map;
+    ListAccum<VERTEX<DeviceProfile>> @@syndicate_devices;
+    ListAccum<VERTEX<Transaction>> @@structured_txns;
+    SumAccum<DOUBLE> @@confidence = 0.0;
+    ListAccum<STRING> @@novel_pattern_claims;
+
+    // 1. Detect high fan-out device profiles across distinct cards
+    Devices = SELECT d FROM DeviceProfile:d -(DEVICE_OF:e)-> Transaction:t -(MADE_BY:e)-> Card:c
+              ACCUM @@device_card_map += (d -> c);
+
+    FOREACH (dev, card_set) IN @@device_card_map DO
+        IF count(card_set) >= min_fanout_cards THEN
+            @@syndicate_devices += dev;
+            @@novel_pattern_claims += "Device profile fanning out to " + to_string(count(card_set)) + " distinct payment cards";
+        END;
+    END;
+
+    // 2. Structured amounts probe (e.g. $99.00 - $99.99 threshold evasion)
+    StructuredTxns = SELECT t FROM Transaction:t
+                     WHERE t.TransactionAmt >= structured_threshold_lower
+                       AND t.TransactionAmt <= structured_threshold_upper
+                       AND t.channel == "online"
+                     ACCUM @@structured_txns += t;
+
+    IF count(@@syndicate_devices) > 0 OR count(@@structured_txns) >= 5 THEN
+        @@confidence = 0.86;
+        @@novel_pattern_claims += "Coordinated cross-customer structured pattern detected";
+    END;
+
+    PRINT @@syndicate_devices AS syndicate_device_profiles,
+          count(@@syndicate_devices) AS high_fanout_device_count,
+          count(@@structured_txns) AS structured_txn_count,
+          @@novel_pattern_claims AS pattern_description,
+          @@confidence AS confidence_contribution,
+          "undocumented" AS pattern;
+}

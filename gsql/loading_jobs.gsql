@@ -1,0 +1,164 @@
+// ============================================================================
+// TigerGraph × Hacker House Goa (HHGOA) IEEE Fraud Investigation
+// Phase 1: GSQL Loading Jobs Definition
+// Graph: FraudGraph
+// Batched, Idempotent, Resumable for 708MB transactions.csv + identity.csv
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+// ----------------------------------------------------------------------------
+// Loading Job: Load Core Transactions, Customers, Cards, and Direct Edges
+// ----------------------------------------------------------------------------
+CREATE LOADING JOB load_transactions_and_entities FOR GRAPH FraudGraph {
+    DEFINE FILENAME f_txns;
+    
+    // 1. Customer Vertex
+    LOAD f_txns TO VERTEX Customer VALUES(
+        $"customer_id",
+        $"customer_id"
+    ) WHERE $"customer_id" IS NOT EMPTY;
+
+    // 2. Card Vertex
+    LOAD f_txns TO VERTEX Card VALUES(
+        $"card1",
+        $"card1",
+        $"card4",
+        $"card6"
+    ) WHERE $"card1" IS NOT EMPTY;
+
+    // 3. EmailDomain Vertex
+    LOAD f_txns TO VERTEX EmailDomain VALUES(
+        $"P_emaildomain"
+    ) WHERE $"P_emaildomain" IS NOT EMPTY;
+
+    // 4. BillingRegion Vertex
+    LOAD f_txns TO VERTEX BillingRegion VALUES(
+        $"addr1",
+        $"addr1",
+        $"addr2"
+    ) WHERE $"addr1" IS NOT EMPTY;
+
+    // 5. Transaction Vertex
+    LOAD f_txns TO VERTEX Transaction VALUES(
+        $"TransactionID",
+        $"TransactionAmt",
+        to_datetime($"ts"),
+        $"channel",
+        $"risk_score",
+        $"ProductCD",
+        $"card4",
+        $"card6",
+        $"addr1",
+        $"addr2",
+        $"dist1",
+        $"P_emaildomain",
+        $"R_emaildomain",
+        // C1-C14
+        $"C1", $"C2", $"C3", $"C4", $"C5", $"C6", $"C7",
+        $"C8", $"C9", $"C10", $"C11", $"C12", $"C13", $"C14",
+        // D1-D15
+        $"D1", $"D2", $"D3", $"D4", $"D5", $"D6", $"D7",
+        $"D8", $"D9", $"D10", $"D11", $"D12", $"D13", $"D14", $"D15",
+        // M1-M9
+        $"M1", $"M2", $"M3", $"M4", $"M5",
+        $"M6", $"M7", $"M8", $"M9",
+        // Top 20 Discriminative V-features
+        $"V10", $"V11", $"V140", $"V139", $"V158",
+        $"V217", $"V157", $"V171", $"V146", $"V147",
+        $"V156", $"V244", $"V149", $"V242", $"V233",
+        $"V167", $"V257", $"V170", $"V155", $"V95"
+    ) USING HEADER="true", SEPARATOR=",";
+
+    // 6. Graph Edges
+    LOAD f_txns TO EDGE OWNS VALUES($"customer_id", $"card1")
+        WHERE $"customer_id" IS NOT EMPTY AND $"card1" IS NOT EMPTY;
+
+    LOAD f_txns TO EDGE MADE VALUES($"card1", $"TransactionID")
+        WHERE $"card1" IS NOT EMPTY AND $"TransactionID" IS NOT EMPTY;
+
+    LOAD f_txns TO EDGE PURCHASER_EMAIL VALUES($"TransactionID", $"P_emaildomain")
+        WHERE $"TransactionID" IS NOT EMPTY AND $"P_emaildomain" IS NOT EMPTY;
+
+    LOAD f_txns TO EDGE BILLED_IN VALUES($"TransactionID", $"addr1")
+        WHERE $"TransactionID" IS NOT EMPTY AND $"addr1" IS NOT EMPTY;
+}
+
+// ----------------------------------------------------------------------------
+// Loading Job: Load Enriched Device Profiles & FROM_DEVICE Edges
+// (identity.csv joined on TransactionID with normalized device key)
+// ----------------------------------------------------------------------------
+CREATE LOADING JOB load_device_profiles FOR GRAPH FraudGraph {
+    DEFINE FILENAME f_devices;
+
+    // DeviceProfile Vertex with exact normalized key
+    LOAD f_devices TO VERTEX DeviceProfile VALUES(
+        $"device_profile_id",
+        $"DeviceInfo",
+        $"id_30",
+        $"id_31",
+        $"id_33",
+        $"DeviceType"
+    ) WHERE $"device_profile_id" IS NOT EMPTY AND $"device_profile_id" != "unknown";
+
+    // FROM_DEVICE Edge (online transactions only)
+    LOAD f_devices TO EDGE FROM_DEVICE VALUES(
+        $"TransactionID",
+        $"device_profile_id"
+    ) WHERE $"TransactionID" IS NOT EMPTY AND $"device_profile_id" IS NOT EMPTY AND $"device_profile_id" != "unknown";
+}
+
+// ----------------------------------------------------------------------------
+// Loading Job: Load Chronological NEXT Edges (burst & testing detection)
+// ----------------------------------------------------------------------------
+CREATE LOADING JOB load_next_edges FOR GRAPH FraudGraph {
+    DEFINE FILENAME f_next;
+
+    LOAD f_next TO EDGE NEXT VALUES(
+        $"from_txn_id",
+        $"to_txn_id"
+    ) WHERE $"from_txn_id" IS NOT EMPTY AND $"to_txn_id" IS NOT EMPTY;
+}
+
+// ----------------------------------------------------------------------------
+// Loading Job: Load Closed Cases and Associated Edges
+// ----------------------------------------------------------------------------
+CREATE LOADING JOB load_closed_cases FOR GRAPH FraudGraph {
+    DEFINE FILENAME f_cases;
+    DEFINE FILENAME f_case_txns;
+    DEFINE FILENAME f_case_connected_cards;
+
+    // ClosedCase Vertex
+    LOAD f_cases TO VERTEX ClosedCase VALUES(
+        $"case_id",
+        to_datetime($"opened_at"),
+        to_datetime($"closed_at"),
+        $"outcome",
+        $"pattern",
+        $"first_fraud_txn_id",
+        $"n_txns",
+        $"exposure_usd",
+        $"connected_card_ids",
+        $"actions_taken",
+        $"report_filed",
+        $"analyst_notes"
+    ) USING HEADER="true", SEPARATOR=",";
+
+    // ON_CARD Edge
+    LOAD f_cases TO EDGE ON_CARD VALUES(
+        $"case_id",
+        $"card_id"
+    ) WHERE $"case_id" IS NOT EMPTY AND $"card_id" IS NOT EMPTY;
+
+    // INVOLVES Edge (case involves each individual transaction)
+    LOAD f_case_txns TO EDGE INVOLVES VALUES(
+        $"case_id",
+        $"txn_id"
+    ) WHERE $"case_id" IS NOT EMPTY AND $"txn_id" IS NOT EMPTY;
+
+    // CONNECTED_TO Edge (case connected to other compromised cards)
+    LOAD f_case_connected_cards TO EDGE CONNECTED_TO VALUES(
+        $"case_id",
+        $"card_id"
+    ) WHERE $"case_id" IS NOT EMPTY AND $"card_id" IS NOT EMPTY;
+}

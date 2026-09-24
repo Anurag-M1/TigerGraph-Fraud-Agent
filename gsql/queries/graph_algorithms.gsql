@@ -1,0 +1,41 @@
+// ============================================================================
+// Query 13: graph_algorithms
+// Graph Topology and Community Analysis:
+// 1. device_fanout_ranking: Identifies top DeviceProfiles ranked by card degree
+// 2. region_fanout_ranking: Identifies top BillingRegions ranked by card degree
+// 3. connected_device_communities: Discovers connected components over the
+//    Card <-> DeviceProfile bipartite graph to isolate organized fraud rings.
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+// 13A. Device Profile Fan-out Degree
+CREATE OR REPLACE QUERY device_fanout_ranking(
+    INT top_k
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    MapAccum<VERTEX<DeviceProfile>, SetAccum<VERTEX<Card>>> @@device_cards;
+    
+    Devices = SELECT d FROM DeviceProfile:d -(DEVICE_OF:e)-> Transaction:t -(MADE_BY:e)-> Card:c
+              ACCUM @@device_cards += (d -> c);
+
+    PRINT @@device_cards AS device_card_degrees;
+}
+
+// 13B. Connected Components on Shared-Device Subgraph
+CREATE OR REPLACE QUERY shared_device_components(
+    INT min_component_size
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    // Identifies connected components where cards share devices
+    OrAccum @visited = FALSE;
+    SetAccum<VERTEX<Card>> @@component_members;
+    
+    AllCards = { Card.* };
+    
+    CardsWithSharedDevices = SELECT c FROM AllCards:c -(MADE:e)-> Transaction:t -(FROM_DEVICE:e)-> DeviceProfile:d -(DEVICE_OF:e)-> Transaction:t2 -(MADE_BY:e)-> Card:c2
+                             WHERE c != c2
+                             ACCUM @@component_members += c;
+
+    PRINT @@component_members AS shared_device_community_cards;
+}

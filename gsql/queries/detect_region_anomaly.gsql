@@ -1,0 +1,88 @@
+// ============================================================================
+// Query 6: detect_region_anomaly
+// Pattern 4: Out-of-Region Use
+// Detects in-person transactions in a billing region (addr1) where the cardholder
+// has NO established history, while normal activity continues concurrently at home.
+// Distinguishes between travel (several consecutive days in one new region = trip)
+// vs physical clone / compromised POS card-present fraud.
+// Returns JSON with matched entities, evidence trail, and confidence contribution.
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+CREATE OR REPLACE QUERY detect_region_anomaly(
+    VERTEX<Card> target_card,
+    VERTEX<Transaction> flagged_txn
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    SumAccum<STRING> @@flagged_region;
+    SumAccum<STRING> @@flagged_channel;
+    SumAccum<DATETIME> @@flagged_ts;
+    SumAccum<INT> @@prior_txns_in_flagged_region = 0;
+    MapAccum<STRING, SumAccum<INT>> @@region_frequencies;
+    SumAccum<STRING> @@home_region = "";
+    MaxAccum<INT> @@max_region_cnt = 0;
+    SumAccum<INT> @@home_txns_near_flagged_date = 0;
+    SumAccum<DOUBLE> @@confidence = 0.0;
+    ListAccum<STRING> @@evidence_claims;
+
+    StartTxn = { flagged_txn };
+    StartTxn = SELECT t FROM StartTxn:t
+               POST-ACCUM 
+                   @@flagged_region = t.addr1,
+                   @@flagged_channel = t.channel,
+                   @@flagged_ts = t.ts;
+
+    StartCard = { target_card };
+
+    // Compute regional distribution across cardholder history
+    CardTxns = SELECT t FROM StartCard:c -(MADE:e)-> Transaction:t
+               ACCUM
+                   IF t.addr1 != "" THEN
+                       @@region_frequencies += (t.addr1 -> 1)
+                   END,
+                   IF t.addr1 == @@flagged_region AND t.id != flagged_txn.id THEN
+                       @@prior_txns_in_flagged_region += 1
+                   END;
+
+    // Determine home region (highest frequency)
+    FOREACH (reg, cnt) IN @@region_frequencies DO
+        IF cnt > @@max_region_cnt THEN
+            @@max_region_cnt = cnt;
+            @@home_region = reg;
+        END;
+    END;
+
+    // Check for concurrent home transactions within +/- 48h
+    ConcurrentCheck = SELECT t FROM StartCard:c -(MADE:e)-> Transaction:t
+                      WHERE t.addr1 == @@home_region
+                        AND datetime_diff(t.ts, @@flagged_ts) >= -172800 
+                        AND datetime_diff(t.ts, @@flagged_ts) <= 172800
+                      ACCUM @@home_txns_near_flagged_date += 1;
+
+    // Evaluation logic
+    IF @@prior_txns_in_flagged_region == 0 AND @@flagged_channel == "in_person" THEN
+        IF @@home_txns_near_flagged_date > 0 THEN
+            // True out-of-region compromise: concurrent spending at home
+            @@confidence = 0.88;
+            @@evidence_claims += "Card used in_person in region " + @@flagged_region + " with 0 prior transactions, while " + to_string(@@home_txns_near_flagged_date) + " transactions occurred concurrently in home region " + @@home_region;
+        ELSE
+            // Isolated new region without concurrent home spending: possible travel
+            @@confidence = 0.40;
+            @@evidence_claims += "Card used in new region " + @@flagged_region + ", but no concurrent home activity detected (possible cardholder travel)";
+        END;
+    ELSE IF @@prior_txns_in_flagged_region > 5 THEN
+        // Regular home/secondary location (e.g. HHG-003 region 330)
+        @@confidence = 0.12;
+        @@evidence_claims += "Region " + @@flagged_region + " is an established location with " + to_string(@@prior_txns_in_flagged_region) + " prior transactions; consistent with cardholder normal presence";
+    END;
+
+    PRINT flagged_txn.id AS txn_id,
+          @@flagged_region AS flagged_region,
+          @@home_region AS home_region,
+          @@prior_txns_in_flagged_region AS prior_txns_in_flagged_region,
+          @@home_txns_near_flagged_date AS concurrent_home_txns,
+          @@evidence_claims AS evidence_trail,
+          @@confidence AS confidence_contribution,
+          "out_of_region_use" AS pattern;
+}

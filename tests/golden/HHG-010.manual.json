@@ -1,0 +1,123 @@
+{
+  "case_id": "HHG-010",
+  "case": {
+    "status": "closed_fraud",
+    "verdict": "fraud",
+    "fraud_probability": 0.92,
+    "pattern": "card_not_present_new_device",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3506725"
+    ],
+    "first_suspicious_txn_id": "3506725",
+    "connected_card_ids": [],
+    "connected_device_profiles": [
+      "Windows | Windows 10 | edge 16.0 | 1366x768"
+    ],
+    "exposure_usd": 1000.03,
+    "evidence": [
+      {
+        "claim": "Flagged transaction 3506725 is a $1,000.03 online transaction with risk_score 0.90, which is at the 99.8th percentile of customer C10434 historical amounts (baseline median: $38.50, mean: $62.15).",
+        "source": "graph",
+        "ref": "query:customer_baseline(customer_id=C10434)",
+        "entity_ids": [
+          "3506725",
+          "C10434"
+        ]
+      },
+      {
+        "claim": "Transaction originated from a device profile marked New for this account (Windows | Windows 10 | edge 16.0 | 1366x768; id_15 = 'New'). Customer history shows exclusively mobile devices.",
+        "source": "graph",
+        "ref": "query:txn_identity(txn_id=3506725)",
+        "entity_ids": [
+          "3506725"
+        ]
+      },
+      {
+        "claim": "Transaction was executed under ProductCD 'R' (online service/risk-transfer channel), a category never previously utilized by this cardholder.",
+        "source": "graph",
+        "ref": "query:customer_product_history(customer_id=C10434)",
+        "entity_ids": [
+          "3506725"
+        ]
+      },
+      {
+        "claim": "Customer contacted for out-of-band validation explicitly denied authorizing the transaction, confirming they still maintain physical possession of card C10434-K1.",
+        "source": "customer",
+        "ref": "evidence_request:1",
+        "entity_ids": []
+      }
+    ],
+    "similar_prior_cases": [
+      "CC-0122",
+      "CC-1569"
+    ],
+    "summary": "High-risk alert on transaction 3506725 ($1,000.03, online, risk score 0.90). Evidence demonstrates an extreme deviation from customer spending baseline ($38.50 median), originating from an unrecognized desktop device profile marked New for this account. Cardholder confirmed physical possession of the card and explicitly denied authorizing the charge. Activity represents card-not-present fraud via compromised card credentials. Card blocked under L1 approval and SAR filing initiated under L2 approval due to exposure exceeding $1,000.",
+    "written_to_graph": false,
+    "graph_case_id": ""
+  },
+  "evidence_requests": [
+    {
+      "type": "customer_validation",
+      "asked_after_step": 2,
+      "assumed_response": "Customer states: 'I never made any online purchase for $1,000.03. I still have my physical card with me. Please block it immediately.'"
+    }
+  ],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "Policy 3a: Assessed fraud probability exceeds 0.30 based on risk score 0.90 and new device anomaly; open formal investigation case."
+      },
+      {
+        "action": "STEP_UP_AUTH",
+        "route": "auto",
+        "reason": "R1: Single high-value transaction from an unrecognized new device profile; mandate step-up authorization challenge."
+      },
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: Probability below 0.85 on single signal; verify with customer before taking irreversible card blocking action."
+      }
+    ],
+    "final": [
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: Customer explicitly denied the transaction. Total exposure of $1,000.03 is <= $2,500, requiring L1 team lead approval."
+      },
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R2: Confirmed unauthorized compromise; persist investigation record to graph memory."
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "R2 & Policy 3a: Confirmed unauthorized use where exposure of $1,000.03 exceeds the $1,000 filing threshold; requires L2 fraud manager approval."
+      }
+    ],
+    "what_changed": "Customer explicit denial of the $1,000.03 charge elevated fraud probability from 0.75 to 0.92, confirming account compromise. This escalated recommended actions from verification to L1 BLOCK_CARD and triggered mandatory L2 FILE_REPORT under policy R2 due to exposure exceeding $1,000."
+  },
+  "sar": {
+    "file": true,
+    "reason": "Policy R2 & FinCEN Guidance: Confirmed unauthorized card-not-present fraud exceeding $1,000 threshold ($1,000.03) from an unrecognized new device profile.",
+    "narrative": "On 2016-12-02 at 18:18:27, an unauthorized online transaction of $1,000.03 (TransactionID 3506725) was initiated on card C10434-K1 belonging to customer C10434. The transaction was scored at 0.90 by the bank's real-time risk model and originated from an unrecognized new device profile (Windows | Windows 10 | edge 16.0 | 1366x768; id_15 = 'New'), inconsistent with the cardholder's historical device usage. The amount of $1,000.03 represents an extreme departure from the customer's median spending baseline of $38.50. Upon contact, the cardholder explicitly denied authorizing the transaction and confirmed continuous physical possession of the card, indicating card credential compromise for card-not-present fraud. Total exposure is $1,000.03. Card C10434-K1 has been blocked and scheduled for reissue with customer reimbursement.",
+    "subjects": [
+      "C10434",
+      "C10434-K1",
+      "3506725",
+      "Windows | Windows 10 | edge 16.0 | 1366x768"
+    ],
+    "total_amount_usd": 1000.03,
+    "activity_dates": [
+      "2016-12-02",
+      "2016-12-02"
+    ]
+  },
+  "stop_reason": "Customer denial settled the fraud verdict. Exposure of $1,000.03 confirmed. Card blocked and regulatory SAR filing recommended under Policy R2. Further investigative steps would not alter the required actions.",
+  "tool_calls": 8,
+  "tokens": 0,
+  "latency_s": 0
+}

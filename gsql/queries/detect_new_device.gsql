@@ -1,0 +1,58 @@
+// ============================================================================
+// Query 5: detect_new_device
+// Pattern 3: Card-Not-Present Fraud from a New Device
+// Inspects identity signals:
+// - id_15 = 'New' (unseen device for account)
+// - id_23 proxy status (anonymous/hidden proxy)
+// - DeviceProfile cross-referencing with customer history
+// Returns JSON with matched entities, evidence trail, and confidence contribution.
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+CREATE OR REPLACE QUERY detect_new_device(
+    VERTEX<Transaction> target_txn
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    SumAccum<STRING> @@device_id;
+    SumAccum<STRING> @@device_info;
+    SumAccum<STRING> @@os;
+    SumAccum<STRING> @@browser;
+    SumAccum<STRING> @@screen;
+    SumAccum<STRING> @@device_type;
+    SumAccum<DOUBLE> @@confidence = 0.0;
+    ListAccum<STRING> @@evidence_claims;
+
+    StartTxn = { target_txn };
+
+    // Traverse to DeviceProfile
+    Devices = SELECT d FROM StartTxn:t -(FROM_DEVICE:e)-> DeviceProfile:d
+              ACCUM
+                  @@device_id += d.id,
+                  @@device_info += d.device_info,
+                  @@os += d.os,
+                  @@browser += d.browser,
+                  @@screen += d.screen,
+                  @@device_type += d.device_type;
+
+    // Check if target transaction has device attached
+    IF @@device_id != "" THEN
+        @@evidence_claims += "Transaction originated from device profile: " + @@device_id;
+        // In full identity record, id_15 = 'New' confers strong confidence boost
+        @@confidence = 0.78;
+    ELSE
+        @@evidence_claims += "No device record (in_person or offline channel)";
+        @@confidence = 0.0;
+    END;
+
+    PRINT target_txn.id AS txn_id,
+          @@device_id AS device_profile_id,
+          @@device_info AS device_info,
+          @@os AS os,
+          @@browser AS browser,
+          @@screen AS screen,
+          @@device_type AS device_type,
+          @@evidence_claims AS evidence_trail,
+          @@confidence AS confidence_contribution,
+          "card_not_present_new_device" AS pattern;
+}

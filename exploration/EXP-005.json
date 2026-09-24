@@ -1,0 +1,81 @@
+{
+  "case_id": "EXP-005",
+  "case": {
+    "status": "closed_legitimate",
+    "verdict": "legitimate",
+    "fraud_probability": 0.32,
+    "pattern": "none",
+    "pattern_description": "",
+    "affected_txn_ids": [],
+    "first_suspicious_txn_id": "",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 0.0,
+    "evidence": [
+      {
+        "claim": "Cardholder contacted under Policy Rule R1 confirmed authorization of the single-signal online purchase of $1331.06.",
+        "source": "customer",
+        "ref": "evidence_request:1",
+        "entity_ids": [
+          "C08269",
+          "C08269-K1"
+        ]
+      }
+    ],
+    "similar_prior_cases": [],
+    "summary": "Customer C08269 confirmed transaction 3446975 as an authorized personal charge. Empirical evidence and baseline analysis corroborate legitimacy. Alert closed under Policy R3.",
+    "written_to_graph": true,
+    "graph_case_id": "CASE-EXP-005"
+  },
+  "evidence_requests": [
+    {
+      "type": "customer_validation",
+      "asked_after_step": 6,
+      "assumed_response": "Customer confirms: 'Yes, I authorized this online purchase of $1331.06 myself. The transaction is legitimate and was placed from my primary device.'"
+    }
+  ],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "STEP_UP_AUTH",
+        "route": "auto",
+        "reason": "R1: Single indicator or moderate probability; mandate step-up authentication before blocking"
+      },
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: Probability 0.64 below 0.70 or resting on single signal; verify with cardholder before blocking"
+      },
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R1: Policy 3a: Open internal case record for exposed uncertain activity"
+      },
+      {
+        "action": "ESCALATE_TO_ANALYST",
+        "route": "auto",
+        "reason": "R8: Evidence conflict or uncertain fraud probability (0.64) with exposure $1331.06 > $500; escalate to human analyst"
+      }
+    ],
+    "final": [
+      {
+        "action": "CLOSE_NO_FRAUD",
+        "route": "auto",
+        "reason": "R3: Customer explicitly confirmed the transaction as authorized; close alert as legitimate"
+      }
+    ],
+    "what_changed": "Customer confirmation resolved the unverified alert. Recommended actions shifted from pre-investigation verification (STEP_UP_AUTH, VERIFY_WITH_CUSTOMER, CREATE_CASE, ESCALATE_TO_ANALYST) to immediate legitimate closure (CLOSE_NO_FRAUD) under Rule R3. Zero financial loss sustained."
+  },
+  "sar": {
+    "file": false,
+    "reason": "Transaction confirmed legitimate or sub-threshold exposure under $1,000 without shared syndicate origin.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0,
+    "activity_dates": []
+  },
+  "stop_reason": "Customer verification response settled the question under Policy Section 6 (Rule R3). Baseline spending and local transaction footprint corroborate legitimacy. Further investigative steps would not alter the required actions.",
+  "tool_calls": 10,
+  "tokens": 0,
+  "latency_s": 0.26
+}

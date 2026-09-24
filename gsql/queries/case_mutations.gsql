@@ -1,0 +1,97 @@
+// ============================================================================
+// Query 12: case_mutations
+// Graph Mutations for Agent Case Memory:
+// 1. upsert_investigation_case: Creates/updates InvestigationCase vertex
+// 2. add_evidence: Inserts EvidenceItem vertex and links via REFERENCES_EVIDENCE
+// 3. link_case_entities: Links InvestigationCase to affected Transaction vertices via RAISED
+// Returns: graph_case_id
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+// 12A. Upsert Investigation Case
+CREATE OR REPLACE QUERY upsert_investigation_case(
+    STRING case_id,
+    STRING status,
+    STRING verdict,
+    DOUBLE fraud_probability,
+    STRING pattern,
+    STRING pattern_description,
+    DOUBLE exposure_usd,
+    STRING summary,
+    BOOL sar_filed,
+    STRING sar_narrative
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    STRING graph_case_id;
+    graph_case_id = "CASE-" + case_id;
+
+    INSERT INTO InvestigationCase (
+        PRIMARY_ID,
+        opened_at,
+        status,
+        verdict,
+        fraud_probability,
+        pattern,
+        pattern_description,
+        exposure_usd,
+        summary,
+        sar_filed,
+        sar_narrative
+    ) VALUES (
+        graph_case_id,
+        now(),
+        status,
+        verdict,
+        fraud_probability,
+        pattern,
+        pattern_description,
+        exposure_usd,
+        summary,
+        sar_filed,
+        sar_narrative
+    );
+
+    PRINT graph_case_id AS graph_case_id,
+          "SUCCESS" AS status;
+}
+
+// 12B. Add Evidence Claim
+CREATE OR REPLACE QUERY add_evidence(
+    STRING case_id,
+    STRING evidence_id,
+    STRING claim,
+    STRING source,
+    STRING ref
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    STRING graph_case_id;
+    graph_case_id = "CASE-" + case_id;
+
+    INSERT INTO EvidenceItem (PRIMARY_ID, claim, source, ref)
+    VALUES (evidence_id, claim, source, ref);
+
+    INSERT INTO REFERENCES_EVIDENCE (FROM, TO)
+    VALUES (graph_case_id, evidence_id);
+
+    PRINT evidence_id AS evidence_id,
+          graph_case_id AS graph_case_id,
+          "LINKED" AS status;
+}
+
+// 12C. Link Case Entities (RAISED edge to transaction)
+CREATE OR REPLACE QUERY link_case_entities(
+    STRING case_id,
+    VERTEX<Transaction> target_txn
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    STRING graph_case_id;
+    graph_case_id = "CASE-" + case_id;
+
+    INSERT INTO RAISED (FROM, TO)
+    VALUES (graph_case_id, target_txn.id);
+
+    PRINT graph_case_id AS graph_case_id,
+          target_txn.id AS transaction_id,
+          "LINKED" AS status;
+}

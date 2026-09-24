@@ -1,0 +1,64 @@
+// ============================================================================
+// Query 8: device_neighbors
+// Implements Policy R6 (Shared Device / Multi-Card Ring):
+// Traverses from a DeviceProfile to find ALL other cards and customers
+// that executed transactions using this exact profile within a temporal window.
+// Returns JSON with matched entities, evidence trail, and confidence contribution.
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+CREATE OR REPLACE QUERY device_neighbors(
+    VERTEX<DeviceProfile> target_device,
+    INT window_days,
+    DATETIME center_ts
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    SetAccum<VERTEX<Card>> @@connected_cards;
+    SetAccum<VERTEX<Customer>> @@connected_customers;
+    ListAccum<VERTEX<Transaction>> @@connected_txns;
+    SumAccum<DOUBLE> @@shared_exposure = 0.0;
+    SumAccum<INT> @@distinct_cards_count = 0;
+    SumAccum<DOUBLE> @@confidence = 0.0;
+
+    DATETIME start_time;
+    DATETIME end_time;
+
+    start_time = datetime_add(center_ts, INTERVAL (-window_days) DAY);
+    end_time = datetime_add(center_ts, INTERVAL (window_days) DAY);
+
+    StartDevice = { target_device };
+
+    // 1-hop: Transactions from this device
+    Txns = SELECT t FROM StartDevice:d -(DEVICE_OF:e)-> Transaction:t
+           WHERE t.ts >= start_time AND t.ts <= end_time
+           ACCUM
+               @@connected_txns += t,
+               @@shared_exposure += t.TransactionAmt;
+
+    // 2-hop: Cards that made those transactions
+    Cards = SELECT c FROM Txns:t -(MADE_BY:e)-> Card:c
+            ACCUM @@connected_cards += c;
+
+    // 3-hop: Customers owning those cards
+    Custs = SELECT cu FROM Cards:c -(OWNED_BY:e)-> Customer:cu
+            ACCUM @@connected_customers += cu;
+
+    @@distinct_cards_count = count(@@connected_cards);
+
+    IF @@distinct_cards_count >= 3 THEN
+        @@confidence = 0.95; // Confirmed shared ring across multiple cards
+    ELSE IF @@distinct_cards_count == 2 THEN
+        @@confidence = 0.82; // Cross-card link
+    ELSE
+        @@confidence = 0.20; // Single card on device
+    END;
+
+    PRINT target_device.id AS device_profile_id,
+          @@connected_cards AS connected_cards,
+          @@connected_customers AS connected_customers,
+          @@distinct_cards_count AS distinct_card_count,
+          @@shared_exposure AS total_shared_exposure_usd,
+          @@confidence AS confidence_contribution,
+          "shared_device_ring" AS pattern;
+}

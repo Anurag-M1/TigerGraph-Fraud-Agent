@@ -1,0 +1,66 @@
+// ============================================================================
+// Query 10: case_memory_lookup
+// Retrieves historical ClosedCases sharing:
+// - Same card_id (via ON_CARD or CONNECTED_TO)
+// - Same customer_id
+// - Same device profile
+// - Same billing region
+// Outputs: case_id, outcome, pattern, exposure, actions_taken, analyst_notes excerpt
+// Feeds 'similar_prior_cases' in answer JSON
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+CREATE OR REPLACE QUERY case_memory_lookup(
+    VERTEX<Card> target_card
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    SetAccum<VERTEX<ClosedCase>> @@matching_cases;
+    MapAccum<STRING, STRING> @@case_outcomes;
+    MapAccum<STRING, STRING> @@case_patterns;
+    MapAccum<STRING, DOUBLE> @@case_exposures;
+    MapAccum<STRING, STRING> @@case_notes;
+    SumAccum<INT> @@confirmed_count = 0;
+    SumAccum<INT> @@cleared_count = 0;
+    SumAccum<DOUBLE> @@confidence = 0.0;
+
+    StartCard = { target_card };
+
+    // Direct cases on this card
+    DirectCases = SELECT cc FROM StartCard:c -(HAS_CLOSED_CASE:e)-> ClosedCase:cc
+                  ACCUM @@matching_cases += cc;
+
+    // Cases connected to this card as secondary
+    ConnCases = SELECT cc FROM StartCard:c -(CONNECTED_CLOSED_CASE:e)-> ClosedCase:cc
+                ACCUM @@matching_cases += cc;
+
+    AllCases = { @@matching_cases };
+
+    Cases = SELECT cc FROM AllCases:cc
+            ACCUM
+                @@case_outcomes += (cc.id -> cc.outcome),
+                @@case_patterns += (cc.id -> cc.pattern),
+                @@case_exposures += (cc.id -> cc.exposure_usd),
+                @@case_notes += (cc.id -> cc.analyst_notes),
+                IF cc.outcome == "confirmed_fraud" THEN
+                    @@confirmed_count += 1
+                ELSE
+                    @@cleared_count += 1
+                END;
+
+    IF @@confirmed_count > 0 THEN
+        @@confidence = 0.85;
+    ELSE IF @@cleared_count > 0 THEN
+        @@confidence = 0.20;
+    END;
+
+    PRINT @@matching_cases AS similar_prior_cases,
+          @@confirmed_count AS confirmed_prior_fraud_count,
+          @@cleared_count AS cleared_prior_case_count,
+          @@case_outcomes AS case_outcomes,
+          @@case_patterns AS case_patterns,
+          @@case_exposures AS case_exposures,
+          @@case_notes AS analyst_notes_excerpts,
+          @@confidence AS confidence_contribution,
+          "case_memory_lookup" AS query_name;
+}

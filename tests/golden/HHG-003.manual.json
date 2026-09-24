@@ -1,0 +1,98 @@
+{
+  "case_id": "HHG-003",
+  "case": {
+    "status": "closed_legitimate",
+    "verdict": "legitimate",
+    "fraud_probability": 0.15,
+    "pattern": "none",
+    "pattern_description": "",
+    "affected_txn_ids": [],
+    "first_suspicious_txn_id": "",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 0,
+    "evidence": [
+      {
+        "claim": "Flagged transaction 3530164 is a $49.00 in-person purchase in billing region 330, where this customer has 51 prior transactions spanning July to December 2016. Region 330 is one of the customer's top-5 most-used regions.",
+        "source": "graph",
+        "ref": "query:customer_region_history(customer_id=C08623, addr1=330)",
+        "entity_ids": ["3530164", "C08623"]
+      },
+      {
+        "claim": "49 minutes before the flagged transaction, the customer made another in-person purchase of $116.93 in the same region 330, confirming physical presence at that location that day.",
+        "source": "graph",
+        "ref": "query:card_window(card_id=C08623-K2, hours=2)",
+        "entity_ids": ["3530164"]
+      },
+      {
+        "claim": "The flagged amount of $49.00 is at the 28th percentile for this customer (mean $129.36, median $68.01) — well within normal spending. Risk score 0.40 is moderate but not high.",
+        "source": "graph",
+        "ref": "query:customer_baseline(customer_id=C08623)",
+        "entity_ids": ["C08623"]
+      },
+      {
+        "claim": "Customer has 5 prior confirmed fraud cases (CC-2817, CC-2935, CC-3327, CC-3682, CC-4957), all on the same card K2, but all involved transactions in billing regions the cardholder had NO history in. This flagged transaction is in a region used 51 times — the opposite pattern.",
+        "source": "graph",
+        "ref": "query:customer_closed_cases(customer_id=C08623)",
+        "entity_ids": ["CC-2817", "CC-2935", "CC-3327", "CC-3682", "CC-4957"]
+      },
+      {
+        "claim": "Customer continues transacting normally in region 330 after the flagged date (Dec 14, 18, 21, 23, 26, 28, 29), with no disruption in spending patterns. This is inconsistent with an active compromise.",
+        "source": "graph",
+        "ref": "query:card_activity_post_flag(card_id=C08623-K2, after=2016-12-10)",
+        "entity_ids": ["C08623-K2"]
+      },
+      {
+        "claim": "Customer confirmed the transaction upon being told it was an in-person purchase in region 330 on the same day as their other purchases there.",
+        "source": "customer",
+        "ref": "evidence_request:1",
+        "entity_ids": []
+      }
+    ],
+    "similar_prior_cases": ["CC-1589", "CC-2817", "CC-2935", "CC-3327", "CC-3682", "CC-4957"],
+    "summary": "Customer C08623 disputed a $49.00 in-person transaction in billing region 330, but evidence shows region 330 is a regular location (51 prior transactions) and the customer was physically present there that day, making another purchase 49 minutes earlier. Although this customer has five confirmed fraud cases, all prior fraud involved regions with no cardholder history — the opposite of this case. Upon verification, the customer confirmed the purchase. Alert closed as legitimate.",
+    "written_to_graph": false,
+    "graph_case_id": ""
+  },
+  "evidence_requests": [
+    {
+      "type": "customer_validation",
+      "asked_after_step": 3,
+      "assumed_response": "Customer confirms: 'Oh yes, I was shopping there that day. I forgot about that purchase. It is mine.'"
+    }
+  ],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "Customer reported unauthorized transaction; open a case to investigate per standard procedure."
+      },
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: Evidence strongly suggests this is legitimate (home region, normal amount, physical presence confirmed by nearby transaction). Verify with customer before any block. R7 principle: disputed charge matches cardholder's own established pattern in this region."
+      }
+    ],
+    "final": [
+      {
+        "action": "CLOSE_NO_FRAUD",
+        "route": "auto",
+        "reason": "R3: Customer confirmed the transaction after being shown it was in-person in their regular region 330, where they were shopping that same day."
+      }
+    ],
+    "what_changed": "Customer initially said 'I never made this purchase' but upon verification confirmed it was theirs. Five converging data points (home region, normal amount, same-day physical presence, continued normal activity, pattern mismatch with prior fraud) and customer confirmation resolve the alert as legitimate."
+  },
+  "sar": {
+    "file": false,
+    "reason": "Transaction confirmed as legitimate by customer after verification. No suspicious activity to report. Closed under R3.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0,
+    "activity_dates": []
+  },
+  "stop_reason": "Customer confirmation settled the question. Five independent evidence points corroborate legitimacy: home region (51 prior uses), normal amount (28th percentile), physical presence confirmed by adjacent transaction, continued normal activity post-flag, and mismatch with prior fraud patterns (which were all out-of-region). Further investigation would not change the decision.",
+  "tool_calls": 7,
+  "tokens": 0,
+  "latency_s": 0
+}

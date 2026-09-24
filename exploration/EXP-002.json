@@ -1,0 +1,80 @@
+{
+  "case_id": "EXP-002",
+  "case": {
+    "status": "closed_fraud",
+    "verdict": "fraud",
+    "fraud_probability": 0.92,
+    "pattern": "out_of_region_use",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3436706"
+    ],
+    "first_suspicious_txn_id": "3436706",
+    "connected_card_ids": [],
+    "connected_device_profiles": [
+      "unknown"
+    ],
+    "exposure_usd": 554.03,
+    "evidence": [
+      {
+        "claim": "Cardholder explicitly denied authorizing the $554.03 transaction, confirming continuous physical possession of card C01154-K1 (credential compromise).",
+        "source": "customer",
+        "ref": "evidence_request:1",
+        "entity_ids": [
+          "C01154",
+          "C01154-K1"
+        ]
+      }
+    ],
+    "similar_prior_cases": [],
+    "summary": "Cardholder C01154 explicitly denied authorizing charge 3436706 ($554.03) while confirming physical possession of card C01154-K1. Investigation confirms out of region use compromise. Containment actions executed per Policy R2.",
+    "written_to_graph": true,
+    "graph_case_id": "CASE-EXP-002"
+  },
+  "evidence_requests": [
+    {
+      "type": "customer_validation",
+      "asked_after_step": 6,
+      "assumed_response": "Customer denies and still has card: 'I never made or authorized any purchase for $554.03. I still have my physical card (C01154-K1) with me in my wallet right now. Please block it immediately.'"
+    }
+  ],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R1: Policy 3a: Strong fraud evidence established (probability 0.97 >= 0.70 or customer denial)"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: Confirmed fraudulent compromise (probability 0.97); exposure $554.03 requires L1 approval"
+      }
+    ],
+    "final": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R1: Policy 3a: Strong fraud evidence established (probability 0.92 >= 0.70 or customer denial)"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: Confirmed fraudulent compromise (probability 0.92); exposure $554.03 requires L1 approval"
+      }
+    ],
+    "what_changed": "Customer validation confirmed that physical card remains in cardholder possession while explicitly denying the transaction, corroborating credential theft. Recommended containment actions (CREATE_CASE, BLOCK_CARD) were finalized and approved for execution under Rule R2."
+  },
+  "sar": {
+    "file": false,
+    "reason": "Transaction confirmed legitimate or sub-threshold exposure under $1,000 without shared syndicate origin.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0,
+    "activity_dates": []
+  },
+  "stop_reason": "Customer denial confirmed unauthorized compromise. Exposure of $554.03 finalized. Containment actions executed and regulatory filing determined under Policy Section 6. Further investigative steps would not change the required decision.",
+  "tool_calls": 10,
+  "tokens": 0,
+  "latency_s": 0.15
+}

@@ -1,0 +1,38 @@
+// ============================================================================
+// Query 1: card_window
+// Traverses transaction sequence on a card via NEXT edges within a time window
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+CREATE OR REPLACE QUERY card_window(
+    VERTEX<Card> target_card,
+    INT window_hours,
+    DATETIME center_ts
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+    
+    ListAccum<VERTEX<Transaction>> @@window_txns;
+    SumAccum<INT> @@txn_count = 0;
+    SumAccum<DOUBLE> @@total_amount = 0.0;
+    
+    DATETIME start_time;
+    DATETIME end_time;
+    
+    start_time = datetime_add(center_ts, INTERVAL (-window_hours) HOUR);
+    end_time = datetime_add(center_ts, INTERVAL (window_hours) HOUR);
+
+    // 1. Start from Card, traverse MADE to find all transactions on this card
+    Start = { target_card };
+    Txns = SELECT t FROM Start:s -(MADE:e)-> Transaction:t
+           WHERE t.ts >= start_time AND t.ts <= end_time
+           ACCUM 
+               @@window_txns += t,
+               @@txn_count += 1,
+               @@total_amount += t.TransactionAmt;
+
+    // Output formatted JSON with matched entities, evidence trail, and confidence contribution
+    PRINT @@window_txns AS matched_entities,
+          @@txn_count AS txn_count,
+          @@total_amount AS total_amount,
+          "query:card_window" AS query_name;
+}

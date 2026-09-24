@@ -1,0 +1,68 @@
+// ============================================================================
+// Query 2: detect_card_testing
+// Implements Policy R5:
+// Detects >= 3 online authorizations <= $5.00 within 60 minutes,
+// immediately followed by a larger purchase (> $50.00 or > $100.00).
+// Returns JSON with matched entities, evidence trail, and confidence contribution.
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+CREATE OR REPLACE QUERY detect_card_testing(
+    VERTEX<Card> target_card,
+    INT max_window_minutes,
+    DOUBLE max_probe_amount,
+    DOUBLE large_purchase_threshold
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    ListAccum<VERTEX<Transaction>> @@probe_txns;
+    ListAccum<VERTEX<Transaction>> @@large_purchases;
+    SumAccum<INT> @@probe_count = 0;
+    SumAccum<BOOL> @@cleared_over_100 = FALSE;
+    SumAccum<DOUBLE> @@exposure_usd = 0.0;
+    SumAccum<DOUBLE> @@confidence = 0.0;
+    
+    Start = { target_card };
+    
+    // Find all online transactions
+    CardTxns = SELECT t FROM Start:s -(MADE:e)-> Transaction:t
+               WHERE t.channel == "online"
+               ORDER BY t.ts ASC;
+
+    // Evaluate sequences via NEXT edges
+    ProbeSet = SELECT t FROM CardTxns:t -(NEXT:e)-> Transaction:nxt
+               WHERE t.TransactionAmt <= max_probe_amount
+                 AND nxt.TransactionAmt <= max_probe_amount
+                 AND datetime_diff(nxt.ts, t.ts) <= (max_window_minutes * 60)
+               ACCUM 
+                   @@probe_txns += t,
+                   @@probe_count += 1,
+                   @@exposure_usd += t.TransactionAmt;
+
+    // Check for trailing larger transaction
+    LargeSet = SELECT nxt FROM CardTxns:t -(NEXT:e)-> Transaction:nxt
+               WHERE t.TransactionAmt <= max_probe_amount
+                 AND nxt.TransactionAmt >= large_purchase_threshold
+               ACCUM
+                   @@large_purchases += nxt,
+                   @@exposure_usd += nxt.TransactionAmt,
+                   IF nxt.TransactionAmt > 100.0 THEN
+                       @@cleared_over_100 += TRUE
+                   END;
+
+    IF @@probe_count >= 3 AND count(@@large_purchases) >= 1 THEN
+        @@confidence = 0.92;
+    ELSE IF @@probe_count >= 2 AND count(@@large_purchases) >= 1 THEN
+        @@confidence = 0.72;
+    ELSE IF @@probe_count >= 3 THEN
+        @@confidence = 0.65;
+    END;
+
+    PRINT @@probe_txns AS probe_transactions,
+          @@large_purchases AS large_purchases,
+          @@probe_count AS probe_count,
+          @@cleared_over_100 AS cleared_over_100,
+          @@exposure_usd AS exposure_usd,
+          @@confidence AS confidence_contribution,
+          "card_testing" AS pattern;
+}

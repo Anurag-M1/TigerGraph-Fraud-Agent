@@ -1,0 +1,222 @@
+// ============================================================================
+// TigerGraph × Hacker House Goa (HHGOA) IEEE Fraud Investigation
+// Phase 1: Graph Schema Definition
+// Graph: FraudGraph
+// ============================================================================
+
+DROP GRAPH FraudGraph;
+DROP VERTEX Customer;
+DROP VERTEX Card;
+DROP VERTEX Transaction;
+DROP VERTEX DeviceProfile;
+DROP VERTEX EmailDomain;
+DROP VERTEX BillingRegion;
+DROP VERTEX ClosedCase;
+DROP VERTEX InvestigationCase;
+DROP VERTEX EvidenceItem;
+
+DROP EDGE OWNS;
+DROP EDGE OWNED_BY;
+DROP EDGE MADE;
+DROP EDGE MADE_BY;
+DROP EDGE FROM_DEVICE;
+DROP EDGE DEVICE_OF;
+DROP EDGE PURCHASER_EMAIL;
+DROP EDGE EMAIL_OF;
+DROP EDGE BILLED_IN;
+DROP EDGE BILLED_TXN;
+DROP EDGE NEXT;
+DROP EDGE INVOLVES;
+DROP EDGE INVOLVED_IN;
+DROP EDGE ON_CARD;
+DROP EDGE HAS_CLOSED_CASE;
+DROP EDGE CONNECTED_TO;
+DROP EDGE CONNECTED_CLOSED_CASE;
+DROP EDGE RAISED;
+DROP EDGE RAISED_BY_CASE;
+DROP EDGE REFERENCES_EVIDENCE;
+DROP EDGE EVIDENCE_OF;
+
+// ----------------------------------------------------------------------------
+// 1. Vertices
+// ----------------------------------------------------------------------------
+
+// Customer account
+CREATE VERTEX Customer(
+    PRIMARY_ID id STRING,
+    customer_id STRING
+) WITH STATS="OUTDEGREE_BY_EDGETYPE";
+
+// Payment Card entity
+CREATE VERTEX Card(
+    PRIMARY_ID id STRING,
+    card_id STRING,
+    card4 STRING,
+    card6 STRING
+) WITH STATS="OUTDEGREE_BY_EDGETYPE";
+
+// Transaction entity with honest signal attributes
+// Includes core identifiers, amounts, timestamps, risk scores, channel,
+// card attributes, billing info, count (C), delta (D), match (M) features,
+// and the top 20 discriminative V-features statistically evaluated on IEEE-CIS.
+CREATE VERTEX Transaction(
+    PRIMARY_ID id STRING,
+    TransactionAmt DOUBLE,
+    ts DATETIME,
+    channel STRING,
+    risk_score DOUBLE,
+    ProductCD STRING,
+    card4 STRING,
+    card6 STRING,
+    addr1 STRING,
+    addr2 STRING,
+    dist1 DOUBLE,
+    P_emaildomain STRING,
+    R_emaildomain STRING,
+    
+    // Count features C1-C14
+    C1 DOUBLE, C2 DOUBLE, C3 DOUBLE, C4 DOUBLE, C5 DOUBLE, C6 DOUBLE, C7 DOUBLE,
+    C8 DOUBLE, C9 DOUBLE, C10 DOUBLE, C11 DOUBLE, C12 DOUBLE, C13 DOUBLE, C14 DOUBLE,
+    
+    // Time delta features D1-D15 (in days)
+    D1 DOUBLE, D2 DOUBLE, D3 DOUBLE, D4 DOUBLE, D5 DOUBLE, D6 DOUBLE, D7 DOUBLE,
+    D8 DOUBLE, D9 DOUBLE, D10 DOUBLE, D11 DOUBLE, D12 DOUBLE, D13 DOUBLE, D14 DOUBLE, D15 DOUBLE,
+    
+    // Match flags M1-M9
+    M1 STRING, M2 STRING, M3 STRING, M4 STRING, M5 STRING,
+    M6 STRING, M7 STRING, M8 STRING, M9 STRING,
+    
+    // Top 20 statistically discriminative V-columns (ranked by Cohen's d effect size on fraud vs cleared)
+    V10 DOUBLE, V11 DOUBLE, V140 DOUBLE, V139 DOUBLE, V158 DOUBLE,
+    V217 DOUBLE, V157 DOUBLE, V171 DOUBLE, V146 DOUBLE, V147 DOUBLE,
+    V156 DOUBLE, V244 DOUBLE, V149 DOUBLE, V242 DOUBLE, V233 DOUBLE,
+    V167 DOUBLE, V257 DOUBLE, V170 DOUBLE, V155 DOUBLE, V95 DOUBLE
+) WITH STATS="OUTDEGREE_BY_EDGETYPE";
+
+// Normalized Device Profile: "DeviceInfo | OS(id_30) | browser(id_31) | screen(id_33)"
+// Key string connects transactions and cases across shared fraud rings
+CREATE VERTEX DeviceProfile(
+    PRIMARY_ID id STRING,
+    device_info STRING,
+    os STRING,
+    browser STRING,
+    screen STRING,
+    device_type STRING
+) WITH STATS="OUTDEGREE_BY_EDGETYPE";
+
+// Email domain vertex (from P_emaildomain and R_emaildomain)
+CREATE VERTEX EmailDomain(
+    PRIMARY_ID id STRING
+) WITH STATS="OUTDEGREE_BY_EDGETYPE";
+
+// Billing geographic region from addr1 and country addr2
+CREATE VERTEX BillingRegion(
+    PRIMARY_ID id STRING,
+    addr1 STRING,
+    addr2 STRING
+) WITH STATS="OUTDEGREE_BY_EDGETYPE";
+
+// Bank's historical closed investigations (ground truth memory)
+CREATE VERTEX ClosedCase(
+    PRIMARY_ID id STRING,
+    opened_at DATETIME,
+    closed_at DATETIME,
+    outcome STRING,
+    pattern STRING,
+    first_fraud_txn_id STRING,
+    n_txns INT,
+    exposure_usd DOUBLE,
+    connected_card_ids STRING,
+    actions_taken STRING,
+    report_filed BOOL,
+    analyst_notes STRING
+) WITH STATS="OUTDEGREE_BY_EDGETYPE";
+
+// Internal investigation cases created by our Agent (Case Memory)
+CREATE VERTEX InvestigationCase(
+    PRIMARY_ID id STRING,
+    opened_at DATETIME,
+    status STRING,
+    verdict STRING,
+    fraud_probability DOUBLE,
+    pattern STRING,
+    pattern_description STRING,
+    exposure_usd DOUBLE,
+    summary STRING,
+    sar_filed BOOL,
+    sar_narrative STRING
+) WITH STATS="OUTDEGREE_BY_EDGETYPE";
+
+// Granular structured evidence items supporting investigation cases
+CREATE VERTEX EvidenceItem(
+    PRIMARY_ID id STRING,
+    claim STRING,
+    source STRING,
+    ref STRING
+) WITH STATS="OUTDEGREE_BY_EDGETYPE";
+
+// ----------------------------------------------------------------------------
+// 2. Edges
+// ----------------------------------------------------------------------------
+
+// Customer owns card
+CREATE DIRECTED EDGE OWNS(FROM Customer, TO Card) WITH REVERSE_EDGE="OWNED_BY";
+
+// Card made transaction
+CREATE DIRECTED EDGE MADE(FROM Card, TO Transaction) WITH REVERSE_EDGE="MADE_BY";
+
+// Online transaction executed from device profile
+CREATE DIRECTED EDGE FROM_DEVICE(FROM Transaction, TO DeviceProfile) WITH REVERSE_EDGE="DEVICE_OF";
+
+// Transaction purchaser email domain
+CREATE DIRECTED EDGE PURCHASER_EMAIL(FROM Transaction, TO EmailDomain) WITH REVERSE_EDGE="EMAIL_OF";
+
+// Transaction billed in region
+CREATE DIRECTED EDGE BILLED_IN(FROM Transaction, TO BillingRegion) WITH REVERSE_EDGE="BILLED_TXN";
+
+// Chronological transaction sequence on a card (ordered by timestamp)
+// CRITICAL: Used for burst detection, card testing velocity, and sequence analysis
+CREATE DIRECTED EDGE NEXT(FROM Transaction, TO Transaction);
+
+// Historical closed case involves transactions
+CREATE DIRECTED EDGE INVOLVES(FROM ClosedCase, TO Transaction) WITH REVERSE_EDGE="INVOLVED_IN";
+
+// Historical closed case on primary card
+CREATE DIRECTED EDGE ON_CARD(FROM ClosedCase, TO Card) WITH REVERSE_EDGE="HAS_CLOSED_CASE";
+
+// Historical closed case connected to other compromised cards in ring/episode
+CREATE DIRECTED EDGE CONNECTED_TO(FROM ClosedCase, TO Card) WITH REVERSE_EDGE="CONNECTED_CLOSED_CASE";
+
+// Agent investigation case raised on transactions
+CREATE DIRECTED EDGE RAISED(FROM InvestigationCase, TO Transaction) WITH REVERSE_EDGE="RAISED_BY_CASE";
+
+// Agent investigation case cites evidence items
+CREATE DIRECTED EDGE REFERENCES_EVIDENCE(FROM InvestigationCase, TO EvidenceItem) WITH REVERSE_EDGE="EVIDENCE_OF";
+
+// ----------------------------------------------------------------------------
+// 3. Graph Creation
+// ----------------------------------------------------------------------------
+
+CREATE GRAPH FraudGraph(
+    Customer,
+    Card,
+    Transaction,
+    DeviceProfile,
+    EmailDomain,
+    BillingRegion,
+    ClosedCase,
+    InvestigationCase,
+    EvidenceItem,
+    
+    OWNS, OWNED_BY,
+    MADE, MADE_BY,
+    FROM_DEVICE, DEVICE_OF,
+    PURCHASER_EMAIL, EMAIL_OF,
+    BILLED_IN, BILLED_TXN,
+    NEXT,
+    INVOLVES, INVOLVED_IN,
+    ON_CARD, HAS_CLOSED_CASE,
+    CONNECTED_TO, CONNECTED_CLOSED_CASE,
+    RAISED, RAISED_BY_CASE,
+    REFERENCES_EVIDENCE, EVIDENCE_OF
+);

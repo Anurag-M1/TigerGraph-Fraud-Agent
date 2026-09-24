@@ -1,0 +1,67 @@
+// ============================================================================
+// Query 4: detect_cnp_burst
+// Pattern 2: Card-Not-Present Fraud Burst
+// Detects 2 to 4 online transactions within a 48-hour window with amounts
+// or products deviating significantly from the cardholder's established baseline.
+// Returns JSON with matched entities, evidence trail, and confidence contribution.
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+CREATE OR REPLACE QUERY detect_cnp_burst(
+    VERTEX<Card> target_card,
+    VERTEX<Transaction> flagged_txn,
+    INT window_hours,
+    DOUBLE deviation_multiplier
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    ListAccum<VERTEX<Transaction>> @@burst_txns;
+    SumAccum<INT> @@online_burst_count = 0;
+    SumAccum<DOUBLE> @@burst_exposure = 0.0;
+    AvgAccum @@baseline_mean;
+    SumAccum<DOUBLE> @@confidence = 0.0;
+    
+    DATETIME center_ts;
+    DATETIME start_window;
+    DATETIME end_window;
+
+    StartTxn = { flagged_txn };
+    StartTxn = SELECT t FROM StartTxn:t 
+               POST-ACCUM 
+                   center_ts = t.ts,
+                   start_window = datetime_add(t.ts, INTERVAL (-window_hours) HOUR),
+                   end_window = datetime_add(t.ts, INTERVAL (window_hours) HOUR);
+
+    StartCard = { target_card };
+
+    // Compute baseline mean
+    BaselineTxns = SELECT t FROM StartCard:c -(MADE:e)-> Transaction:t
+                   ACCUM @@baseline_mean += t.TransactionAmt;
+
+    // Detect burst transactions in window
+    BurstSet = SELECT t FROM StartCard:c -(MADE:e)-> Transaction:t
+               WHERE t.channel == "online"
+                 AND t.ts >= start_window AND t.ts <= end_window
+               ACCUM 
+                   @@burst_txns += t,
+                   @@online_burst_count += 1,
+                   @@burst_exposure += t.TransactionAmt;
+
+    // Evaluate burst criteria: 2 to 4 online transactions within 48h
+    IF @@online_burst_count >= 2 AND @@online_burst_count <= 6 THEN
+        IF @@burst_exposure >= (@@baseline_mean * deviation_multiplier) THEN
+            @@confidence = 0.82;
+        ELSE
+            @@confidence = 0.68;
+        END;
+    ELSE IF @@online_burst_count == 1 THEN
+        @@confidence = 0.45; // Single online purchase -> R1 verify with customer
+    END;
+
+    PRINT @@burst_txns AS matched_entities,
+          @@online_burst_count AS burst_count,
+          @@burst_exposure AS exposure_usd,
+          @@baseline_mean AS card_baseline_mean,
+          @@confidence AS confidence_contribution,
+          "card_not_present_fraud" AS pattern;
+}

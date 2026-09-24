@@ -1,0 +1,77 @@
+// ============================================================================
+// Query 7: detect_account_takeover
+// Pattern 5: Account Takeover (ATO)
+// Detects:
+// - Mixed-channel inconsistency (e.g. historical 100% in_person suddenly followed by large online txn)
+// - Match flag anomalies (M1-M9 flags indicating name/billing address discrepancy)
+// - Device profile mismatch or uncharacteristic device origin
+// Returns JSON with matched entities, evidence trail, and confidence contribution.
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+CREATE OR REPLACE QUERY detect_account_takeover(
+    VERTEX<Card> target_card,
+    VERTEX<Transaction> flagged_txn
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    SumAccum<INT> @@historical_in_person = 0;
+    SumAccum<INT> @@historical_online = 0;
+    SumAccum<STRING> @@flagged_channel;
+    SumAccum<STRING> @@m1;
+    SumAccum<STRING> @@m4;
+    SumAccum<STRING> @@m6;
+    SumAccum<INT> @@mismatch_count = 0;
+    SumAccum<DOUBLE> @@confidence = 0.0;
+    ListAccum<STRING> @@evidence_claims;
+
+    StartTxn = { flagged_txn };
+    StartTxn = SELECT t FROM StartTxn:t
+               POST-ACCUM
+                   @@flagged_channel = t.channel,
+                   @@m1 = t.M1,
+                   @@m4 = t.M4,
+                   @@m6 = t.M6;
+
+    StartCard = { target_card };
+
+    // Assess cardholder historical channel breakdown
+    HistoryTxns = SELECT t FROM StartCard:c -(MADE:e)-> Transaction:t
+                  WHERE t.id != flagged_txn.id
+                  ACCUM
+                      IF t.channel == "in_person" THEN
+                          @@historical_in_person += 1
+                      ELSE IF t.channel == "online" THEN
+                          @@historical_online += 1
+                      END;
+
+    // Check match flags (F or mismatch indicates credential/address tampering)
+    IF @@m1 == "F" THEN @@mismatch_count += 1; END;
+    IF @@m4 == "M2" OR @@m4 == "F" THEN @@mismatch_count += 1; END;
+    IF @@m6 == "F" THEN @@mismatch_count += 1; END;
+
+    // Evaluate ATO indicators
+    IF @@flagged_channel == "online" AND @@historical_online == 0 AND @@historical_in_person >= 10 THEN
+        @@evidence_claims += "Extreme channel shift: cardholder with 100% in-person history (" + to_string(@@historical_in_person) + " txns) suddenly experienced online charge";
+        IF @@mismatch_count >= 1 THEN
+            @@confidence = 0.89;
+            @@evidence_claims += "Multiple identity match-flag discrepancies detected (M1/M4/M6 mismatches)";
+        ELSE
+            @@confidence = 0.74;
+        END;
+    ELSE IF @@mismatch_count >= 2 THEN
+        @@confidence = 0.81;
+        @@evidence_claims += "High identity verification discrepancy count (" + to_string(@@mismatch_count) + " match flag anomalies)";
+    ELSE
+        @@confidence = 0.25;
+    END;
+
+    PRINT flagged_txn.id AS txn_id,
+          @@flagged_channel AS flagged_channel,
+          @@historical_in_person AS historical_in_person,
+          @@historical_online AS historical_online,
+          @@mismatch_count AS mismatch_count,
+          @@evidence_claims AS evidence_trail,
+          @@confidence AS confidence_contribution,
+          "account_takeover" AS pattern;
+}

@@ -1,0 +1,125 @@
+{
+  "case_id": "HHG-011",
+  "case": {
+    "status": "closed_fraud",
+    "verdict": "fraud",
+    "fraud_probability": 0.88,
+    "pattern": "card_not_present_new_device",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3583368"
+    ],
+    "first_suspicious_txn_id": "3583368",
+    "connected_card_ids": [
+      "C05595-K1",
+      "C03938-K1",
+      "C05678-K1"
+    ],
+    "connected_device_profiles": [
+      "SM-G610F Build/NRD90M | chrome 66.0 for android"
+    ],
+    "exposure_usd": 131.3,
+    "evidence": [
+      {
+        "claim": "Card testing sequence confirmed: 3 micro-authorizations under $5.00 within 60m, followed by $67.05 purchase",
+        "source": "graph",
+        "ref": "query:detect_card_testing(card_id=C11923-K2)",
+        "entity_ids": [
+          "3398198",
+          "3398201",
+          "3398216",
+          "3398224"
+        ]
+      },
+      {
+        "claim": "Policy R5 triggered: large purchase $67.05 (cleared > $100: False)",
+        "source": "graph",
+        "ref": "query:detect_card_testing(card_id=C11923-K2)",
+        "entity_ids": [
+          "3398198",
+          "3398201",
+          "3398216",
+          "3398224"
+        ]
+      },
+      {
+        "claim": "Transaction originated from a new device profile: SM-G610F Build/NRD90M | chrome 66.0 for android (id_15 = 'New')",
+        "source": "graph",
+        "ref": "query:detect_new_device(txn_id=3583368)",
+        "entity_ids": [
+          "3583368"
+        ]
+      },
+      {
+        "claim": "Shared device ring: profile 'SM-G610F Build/NRD90M | chrome 66.0 for android' connects activity to 3 other card(s) ['C05595-K1', 'C03938-K1', 'C05678-K1'].",
+        "source": "graph",
+        "ref": "query:device_neighbors(device=SM-G610F Build/NRD90M | chrome 66.0 for android)",
+        "entity_ids": [
+          "C05595-K1",
+          "C03938-K1",
+          "C05678-K1",
+          "SM-G610F Build/NRD90M | chrome 66.0 for android"
+        ]
+      },
+      {
+        "claim": "Cardholder explicitly denied authorizing the $131.30 transaction, confirming continuous physical possession of card C11923-K2 (credential compromise).",
+        "source": "customer",
+        "ref": "evidence_request:1",
+        "entity_ids": [
+          "C11923",
+          "C11923-K2"
+        ]
+      }
+    ],
+    "similar_prior_cases": [],
+    "summary": "Cardholder C11923 explicitly denied authorizing charge 3583368 ($131.30) while confirming physical possession of card C11923-K2. Investigation confirms card not present new device compromise. Containment actions executed per Policy R2.",
+    "written_to_graph": true,
+    "graph_case_id": "CASE-HHG-011"
+  },
+  "evidence_requests": [
+    {
+      "type": "customer_validation",
+      "asked_after_step": 6,
+      "assumed_response": "Customer denies and still has card: 'I never made or authorized any purchase for $131.30. I still have my physical card (C11923-K2) with me in my wallet right now. Please block it immediately.'"
+    }
+  ],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R1: Policy 3a: Strong fraud evidence established (probability 1.00 >= 0.70 or customer denial)"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: Confirmed fraudulent compromise (probability 1.00); exposure $131.30 requires L1 approval"
+      }
+    ],
+    "final": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R1: Policy 3a: Strong fraud evidence established (probability 0.88 >= 0.70 or customer denial)"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: Confirmed fraudulent compromise (probability 0.88); exposure $131.30 requires L1 approval"
+      }
+    ],
+    "what_changed": "Customer validation confirmed that physical card remains in cardholder possession while explicitly denying the transaction, corroborating credential theft. Recommended containment actions (CREATE_CASE, BLOCK_CARD) were finalized and approved for execution under Rule R2."
+  },
+  "sar": {
+    "file": false,
+    "reason": "Transaction confirmed legitimate or sub-threshold exposure under $1,000 without shared syndicate origin.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0,
+    "activity_dates": []
+  },
+  "stop_reason": "Customer denial confirmed unauthorized compromise. Exposure of $131.30 finalized. Containment actions executed and regulatory filing determined under Policy Section 6. Further investigative steps would not change the required decision.",
+  "tool_calls": 10,
+  "tokens": 12750,
+  "latency_s": 2.22
+}

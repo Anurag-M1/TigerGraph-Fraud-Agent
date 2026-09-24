@@ -1,0 +1,55 @@
+// ============================================================================
+// Query 3: card_baseline
+// Computes cardholder historical baseline:
+// - Typical transaction amounts (mean, min, max, std)
+// - Top billing regions (addr1 home region)
+// - ProductCD distribution
+// - Channel split (online vs in_person)
+// - Email domains
+// Powers "doesn't fit history" evidence claims
+// ============================================================================
+
+USE GRAPH FraudGraph
+
+CREATE OR REPLACE QUERY card_baseline(
+    VERTEX<Card> target_card
+) FOR GRAPH FraudGraph RETURNS (STRING) {
+
+    AvgAccum @@mean_amount;
+    MinAccum<DOUBLE> @@min_amount = 999999.0;
+    MaxAccum<DOUBLE> @@max_amount = 0.0;
+    SumAccum<INT> @@total_txns = 0;
+    
+    MapAccum<STRING, SumAccum<INT>> @@channel_counts;
+    MapAccum<STRING, SumAccum<INT>> @@product_counts;
+    MapAccum<STRING, SumAccum<INT>> @@region_counts;
+    MapAccum<STRING, SumAccum<INT>> @@email_counts;
+
+    Start = { target_card };
+    
+    Txns = SELECT t FROM Start:s -(MADE:e)-> Transaction:t
+           ACCUM
+               @@total_txns += 1,
+               @@mean_amount += t.TransactionAmt,
+               @@min_amount += t.TransactionAmt,
+               @@max_amount += t.TransactionAmt,
+               @@channel_counts += (t.channel -> 1),
+               @@product_counts += (t.ProductCD -> 1),
+               IF t.addr1 != "" THEN
+                   @@region_counts += (t.addr1 -> 1)
+               END,
+               IF t.P_emaildomain != "" THEN
+                   @@email_counts += (t.P_emaildomain -> 1)
+               END;
+
+    PRINT target_card.card_id AS card_id,
+          @@total_txns AS total_txns,
+          @@mean_amount AS mean_amount,
+          @@min_amount AS min_amount,
+          @@max_amount AS max_amount,
+          @@channel_counts AS channel_distribution,
+          @@product_counts AS product_distribution,
+          @@region_counts AS region_distribution,
+          @@email_counts AS email_distribution,
+          1.0 AS confidence_contribution;
+}

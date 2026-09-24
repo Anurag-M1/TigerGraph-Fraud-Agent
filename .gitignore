@@ -1,0 +1,77 @@
+# Environments & Secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Large Datasets (> 100MB GitHub limit)
+# The full 590k raw transactions and pre-built graph DB are generated via gsql/load_graph.py
+Dataset/transactions.csv
+gsql/graph_data/fraud_graph.db*
+gsql/graph_data/*.db*
+gsql/staging/
+*.db-wal
+*.db-shm
+
+# Python & Caching
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+/lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Next.js & Node
+node_modules/
+.next/
+out/
+ui/node_modules/
+ui/.next/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Operating System & IDE
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Task logs & temporary runs
+*.log
+gsql/loading_run.log
+
+# Non-code artifacts & tool caches not needed for execution
+*.docx
+graphify-out/
+.agents/
+.codex/
+AGENTS.md
+CLAUDE.md
+ui/AGENTS.md
+ui/CLAUDE.md
