@@ -7,7 +7,7 @@
 ### Tweet 1 (Hook / Announcement) 🧵👇
 Can an autonomous AI agent fight financial fraud without hallucinating, blocking legitimate cards, or failing federal audits?
 
-We built the answer for @TigerGraphDB × Hacker House Goa: An autonomous multi-agent defense system across 590,742 transactions.
+We built the answer for @TigerGraphDB and @247pmstudio at Hacker House Goa: An autonomous multi-agent fraud defense system across 590,742 transactions.
 
 Our core rule: **The LLM reasons, but the Policy Engine decides.** 🛡️⚡
 
@@ -79,9 +79,9 @@ Built with:
 🖥️ FastAPI + D3.js Analyst Dashboard
 
 Read the full technical deep-dive and watch the demo:
-📝 Blog: https://github.com/your-org/hhgoa-fraud-defense/blob/main/blog/draft.md
-🎥 Demo: https://github.com/your-org/hhgoa-fraud-defense/blob/main/demo/script.md
-💻 Code: https://github.com/your-org/hhgoa-fraud-defense
+📝 Blog: https://github.com/Anurag-M1/TigerGraph-Fraud-Agent/blob/main/blog/draft.md
+🎥 Demo: https://github.com/Anurag-M1/TigerGraph-Fraud-Agent/blob/main/demo/script.md
+💻 Code: https://github.com/Anurag-M1/TigerGraph-Fraud-Agent
 
 #TigerGraph #FraudDetection #GraphAI #LangGraph #FinTech #MachineLearning #AutonomousAgents
 
@@ -122,11 +122,11 @@ We didn’t just build a prompt; we empirically calibrated and validated our sys
 
 Check out our full open-source repository, GSQL schemas, and interactive Analyst Dashboard!
 
-🔗 **GitHub Repository:** https://github.com/your-org/hhgoa-fraud-defense  
-📹 **Video Demo Script:** https://github.com/your-org/hhgoa-fraud-defense/blob/main/demo/script.md  
-📄 **Technical Deep-Dive Blog:** https://github.com/your-org/hhgoa-fraud-defense/blob/main/blog/draft.md  
+🔗 **GitHub Repository:** https://github.com/Anurag-M1/TigerGraph-Fraud-Agent  
+📹 **Video Demo Script:** https://github.com/Anurag-M1/TigerGraph-Fraud-Agent/blob/main/demo/script.md  
+📄 **Technical Deep-Dive Blog:** https://github.com/Anurag-M1/TigerGraph-Fraud-Agent/blob/main/blog/draft.md  
 
-Special thanks to the @TigerGraphDB team for hosting the Hacker House Goa build!
+Special thanks to the @TigerGraphDB and @247pmstudio teams for hosting the Hacker House Goa build!
 
 #GraphDatabase #TigerGraph #GSQL #FraudPrevention #AutonomousAgents #GenerativeAI #FinTech #MachineLearning #RiskManagement
 
