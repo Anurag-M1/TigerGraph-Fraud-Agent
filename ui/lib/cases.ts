@@ -12,8 +12,10 @@ import {
 
 function getCasesDir(): string {
   const candidates = [
+    path.resolve(process.cwd(), 'data', 'cases'),
     path.resolve(process.cwd(), 'cases'),
     path.resolve(process.cwd(), '..', 'cases'),
+    path.resolve(process.cwd(), 'ui', 'data', 'cases'),
   ];
   for (const dir of candidates) {
     if (fs.existsSync(dir)) return dir;
@@ -23,8 +25,10 @@ function getCasesDir(): string {
 
 export function parseCasePackCsv(): Record<string, CaseMetadata> {
   const candidates = [
+    path.resolve(process.cwd(), 'data', 'case_pack.csv'),
     path.resolve(process.cwd(), 'Dataset', 'case_pack.csv'),
     path.resolve(process.cwd(), '..', 'Dataset', 'case_pack.csv'),
+    path.resolve(process.cwd(), 'ui', 'data', 'case_pack.csv'),
   ];
 
   let csvPath: string | null = null;

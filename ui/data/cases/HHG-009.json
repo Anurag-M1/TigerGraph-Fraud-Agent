@@ -1,0 +1,76 @@
+{
+  "case_id": "HHG-009",
+  "case": {
+    "status": "closed_legitimate",
+    "verdict": "legitimate",
+    "fraud_probability": 0.18,
+    "pattern": "none",
+    "pattern_description": "",
+    "affected_txn_ids": [],
+    "first_suspicious_txn_id": "",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 0.0,
+    "evidence": [
+      {
+        "claim": "Customer contacted for validation confirmed the $30.02 recurring transaction as an authorized active subscription (Policy R7).",
+        "source": "customer",
+        "ref": "evidence_request:1",
+        "entity_ids": [
+          "C08299",
+          "C08299-K1"
+        ]
+      }
+    ],
+    "similar_prior_cases": [],
+    "summary": "Customer C08299 confirmed transaction 3581141 as an authorized personal charge. Empirical evidence and baseline analysis corroborate legitimacy. Alert closed under Policy R3.",
+    "written_to_graph": true,
+    "graph_case_id": "CASE-HHG-009"
+  },
+  "evidence_requests": [
+    {
+      "type": "customer_validation",
+      "asked_after_step": 6,
+      "assumed_response": "Customer confirms \u2014 recurring subscription: 'I recognize this recurring merchant charge of $30.02. I had forgotten about this monthly subscription service agreement.'"
+    }
+  ],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "STEP_UP_AUTH",
+        "route": "auto",
+        "reason": "R1: Single indicator or moderate probability; mandate step-up authentication before blocking"
+      },
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: Probability 1.00 below 0.70 or resting on single signal; verify with cardholder before blocking"
+      },
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R1: Policy 3a: Fraud probability 1.00 >= 0.30 or evidence requested; open internal investigation case"
+      }
+    ],
+    "final": [
+      {
+        "action": "CLOSE_NO_FRAUD",
+        "route": "auto",
+        "reason": "R3: Customer explicitly confirmed the transaction as authorized; close alert as legitimate"
+      }
+    ],
+    "what_changed": "Customer confirmation resolved the unverified alert. Recommended actions shifted from pre-investigation verification (STEP_UP_AUTH, VERIFY_WITH_CUSTOMER, CREATE_CASE) to immediate legitimate closure (CLOSE_NO_FRAUD) under Rule R3. Zero financial loss sustained."
+  },
+  "sar": {
+    "file": false,
+    "reason": "Transaction confirmed legitimate or sub-threshold exposure under $1,000 without shared syndicate origin.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0,
+    "activity_dates": []
+  },
+  "stop_reason": "Customer verification response settled the question under Policy Section 6 (Rule R3). Baseline spending and local transaction footprint corroborate legitimacy. Further investigative steps would not alter the required actions.",
+  "tool_calls": 10,
+  "tokens": 12750,
+  "latency_s": 0.11
+}

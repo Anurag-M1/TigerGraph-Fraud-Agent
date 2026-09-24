@@ -1,0 +1,105 @@
+{
+  "case_id": "HHG-019",
+  "case": {
+    "status": "closed_fraud",
+    "verdict": "fraud",
+    "fraud_probability": 0.89,
+    "pattern": "card_not_present_new_device",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3503878"
+    ],
+    "first_suspicious_txn_id": "3503878",
+    "connected_card_ids": [
+      "C01983-K1",
+      "C01104-K2",
+      "C11309-K1",
+      "C06224-K2"
+    ],
+    "connected_device_profiles": [
+      "Windows | other | chrome 61.0 | 1280x720"
+    ],
+    "exposure_usd": 99.92,
+    "evidence": [
+      {
+        "claim": "Transaction originated from a new device profile: Windows | other | chrome 61.0 | 1280x720 (id_15 = 'New')",
+        "source": "graph",
+        "ref": "query:detect_new_device(txn_id=3503878)",
+        "entity_ids": [
+          "3503878"
+        ]
+      },
+      {
+        "claim": "Shared device ring: profile 'Windows | other | chrome 61.0 | 1280x720' connects activity to 4 other card(s) ['C01983-K1', 'C01104-K2', 'C11309-K1'].",
+        "source": "graph",
+        "ref": "query:device_neighbors(device=Windows | other | chrome 61.0 | 1280x720)",
+        "entity_ids": [
+          "C01983-K1",
+          "C01104-K2",
+          "C11309-K1",
+          "C06224-K2",
+          "Windows | other | chrome 61.0 | 1280x720"
+        ]
+      },
+      {
+        "claim": "Cardholder explicitly denied authorizing the $99.92 transaction, confirming continuous physical possession of card C07987-K2 (credential compromise).",
+        "source": "customer",
+        "ref": "evidence_request:1",
+        "entity_ids": [
+          "C07987",
+          "C07987-K2"
+        ]
+      }
+    ],
+    "similar_prior_cases": [],
+    "summary": "Cardholder C07987 explicitly denied authorizing charge 3503878 ($99.92) while confirming physical possession of card C07987-K2. Investigation confirms card not present new device compromise. Containment actions executed per Policy R2.",
+    "written_to_graph": true,
+    "graph_case_id": "CASE-HHG-019"
+  },
+  "evidence_requests": [
+    {
+      "type": "customer_validation",
+      "asked_after_step": 6,
+      "assumed_response": "Customer denies and still has card: 'I never made or authorized any purchase for $99.92. I still have my physical card (C07987-K2) with me in my wallet right now. Please block it immediately.'"
+    }
+  ],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R1: Policy 3a: Strong fraud evidence established (probability 1.00 >= 0.70 or customer denial)"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: Confirmed fraudulent compromise (probability 1.00); exposure $99.92 requires L1 approval"
+      }
+    ],
+    "final": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R1: Policy 3a: Strong fraud evidence established (probability 0.89 >= 0.70 or customer denial)"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: Confirmed fraudulent compromise (probability 0.89); exposure $99.92 requires L1 approval"
+      }
+    ],
+    "what_changed": "Customer validation confirmed that physical card remains in cardholder possession while explicitly denying the transaction, corroborating credential theft. Recommended containment actions (CREATE_CASE, BLOCK_CARD) were finalized and approved for execution under Rule R2."
+  },
+  "sar": {
+    "file": false,
+    "reason": "Transaction confirmed legitimate or sub-threshold exposure under $1,000 without shared syndicate origin.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0,
+    "activity_dates": []
+  },
+  "stop_reason": "Customer denial confirmed unauthorized compromise. Exposure of $99.92 finalized. Containment actions executed and regulatory filing determined under Policy Section 6. Further investigative steps would not change the required decision.",
+  "tool_calls": 10,
+  "tokens": 12750,
+  "latency_s": 0.18
+}

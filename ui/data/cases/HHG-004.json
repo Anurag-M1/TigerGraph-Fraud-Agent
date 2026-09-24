@@ -1,0 +1,107 @@
+{
+  "case_id": "HHG-004",
+  "case": {
+    "status": "closed_fraud",
+    "verdict": "fraud",
+    "fraud_probability": 0.82,
+    "pattern": "card_not_present_fraud",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3583227"
+    ],
+    "first_suspicious_txn_id": "3583227",
+    "connected_card_ids": [
+      "C07518-K2",
+      "C05031-K2",
+      "C02222-K1",
+      "C04248-K2",
+      "C03095-K2"
+    ],
+    "connected_device_profiles": [
+      "firefox 47.0"
+    ],
+    "exposure_usd": 128.33,
+    "evidence": [
+      {
+        "claim": "Transaction originated from a new device profile: firefox 47.0 (id_15 = 'New')",
+        "source": "graph",
+        "ref": "query:detect_new_device(txn_id=3583227)",
+        "entity_ids": [
+          "3583227"
+        ]
+      },
+      {
+        "claim": "Shared device ring: profile 'firefox 47.0' connects activity to 5 other card(s) ['C07518-K2', 'C05031-K2', 'C02222-K1'].",
+        "source": "graph",
+        "ref": "query:device_neighbors(device=firefox 47.0)",
+        "entity_ids": [
+          "C07518-K2",
+          "C05031-K2",
+          "C02222-K1",
+          "C04248-K2",
+          "C03095-K2",
+          "firefox 47.0"
+        ]
+      },
+      {
+        "claim": "Cardholder explicitly denied authorizing the $128.33 transaction, confirming continuous physical possession of card C08106-K1 (credential compromise).",
+        "source": "customer",
+        "ref": "evidence_request:1",
+        "entity_ids": [
+          "C08106",
+          "C08106-K1"
+        ]
+      }
+    ],
+    "similar_prior_cases": [],
+    "summary": "Cardholder C08106 explicitly denied authorizing charge 3583227 ($128.33) while confirming physical possession of card C08106-K1. Investigation confirms card not present fraud compromise. Containment actions executed per Policy R2.",
+    "written_to_graph": true,
+    "graph_case_id": "CASE-HHG-004"
+  },
+  "evidence_requests": [
+    {
+      "type": "customer_validation",
+      "asked_after_step": 6,
+      "assumed_response": "Customer denies and still has card: 'I never made or authorized any purchase for $128.33. I still have my physical card (C08106-K1) with me in my wallet right now. Please block it immediately.'"
+    }
+  ],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R1: Policy 3a: Strong fraud evidence established (probability 1.00 >= 0.70 or customer denial)"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: Confirmed fraudulent compromise (probability 1.00); exposure $128.33 requires L1 approval"
+      }
+    ],
+    "final": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "R1: Policy 3a: Strong fraud evidence established (probability 0.82 >= 0.70 or customer denial)"
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: Confirmed fraudulent compromise (probability 0.82); exposure $128.33 requires L1 approval"
+      }
+    ],
+    "what_changed": "Customer validation confirmed that physical card remains in cardholder possession while explicitly denying the transaction, corroborating credential theft. Recommended containment actions (CREATE_CASE, BLOCK_CARD) were finalized and approved for execution under Rule R2."
+  },
+  "sar": {
+    "file": false,
+    "reason": "Transaction confirmed legitimate or sub-threshold exposure under $1,000 without shared syndicate origin.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0,
+    "activity_dates": []
+  },
+  "stop_reason": "Customer denial confirmed unauthorized compromise. Exposure of $128.33 finalized. Containment actions executed and regulatory filing determined under Policy Section 6. Further investigative steps would not change the required decision.",
+  "tool_calls": 10,
+  "tokens": 12750,
+  "latency_s": 0.11
+}
