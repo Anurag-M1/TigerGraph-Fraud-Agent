@@ -301,4 +301,4 @@ Building an autonomous agent across 590,742 IEEE transactions yielded critical e
 
 Autonomous fraud defense does not require choosing between the flexibility of LLMs and the rigor of regulatory compliance. By combining **TigerGraph's high-performance graph topology**, **LangGraph's multi-agent reasoning**, and a **deterministic, calibrated policy engine**, banks can deploy autonomous systems that are fast, auditable, and mathematically grounded.
 
-*Explore the codebase, GSQL schemas, and validation suite on GitHub: [TigerGraph × HHGOA IEEE Fraud Investigation Repository](https://github.com/your-org/hhgoa-fraud-defense).*
+*Explore the codebase, GSQL schemas, and validation suite on GitHub: [TigerGraph × HHGOA Autonomous Fraud Defense Repository](https://github.com/Anurag-M1/TigerGraph-Fraud-Agent).*
